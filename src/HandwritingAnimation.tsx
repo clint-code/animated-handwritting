@@ -1,78 +1,61 @@
 import React, { useRef, useEffect } from 'react';
 import gsap from 'gsap';
-import DrawSVGPlugin from 'gsap/DrawSVGPlugin';
-
-// Register DrawSVG if available
-try {
-  gsap.registerPlugin(DrawSVGPlugin);
-} catch (e) {
-  console.warn('DrawSVG not available, using fallback animation');
-}
 
 interface HandwritingProps {
   text: string;
   duration?: number;
 }
 
-/**
- * Handwriting animation component
- * Uses DrawSVG for smooth stroke animation
- */
 export const HandwritingAnimation: React.FC<HandwritingProps> = ({
   text = 'Your text here',
   duration = 3,
 }) => {
-  
-  const svgRef = useRef<SVGSVGElement>(null);
   const textRef = useRef<SVGTextElement>(null);
-  const timelineRef = useRef<gsap.core.Timeline | null>(null);
 
   useEffect(() => {
-    if (!textRef.current) return;
+    if (!textRef.current) {
+      console.log('Text ref not ready');
+      return;
+    }
 
     // Update text
     textRef.current.textContent = text;
+    console.log('Text updated to:', text);
 
-    // Delay to ensure SVG is rendered
-    const timer = setTimeout(() => {
-      if (!textRef.current) return;
+    // Wait for SVG to render
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!textRef.current) return;
 
-      // Kill existing animation
-      if (timelineRef.current) {
-        timelineRef.current.kill();
-      }
+        try {
+          // Get path length
+          const pathLength = (textRef.current as any).getTotalLength?.() || 1000;
+          console.log('Path length:', pathLength);
 
-      // Create timeline
-      timelineRef.current = gsap.timeline();
+          // Kill any existing animations
+          gsap.killTweensOf(textRef.current);
 
-      // Try DrawSVG first, fallback to stroke-dasharray
-      try {
-        timelineRef.current.to(textRef.current, {
-          drawSVG: '0% 100%',
-          duration,
-          ease: 'sine.inOut',
-        });
-      } catch (e) {
-        // Fallback: stroke-dasharray animation
-        const pathLength = (textRef.current as any).getTotalLength?.() || 1000;
-        
-        textRef.current.style.strokeDasharray = pathLength.toString();
-        textRef.current.style.strokeDashoffset = pathLength.toString();
+          // Set initial state - text invisible
+          textRef.current.style.strokeDasharray = pathLength.toString();
+          textRef.current.style.strokeDashoffset = pathLength.toString();
 
-        timelineRef.current.to(textRef.current, {
-          strokeDashoffset: 0,
-          duration,
-          ease: 'sine.inOut',
-        });
-      }
-    }, 100);
-
-    return () => clearTimeout(timer);
+          // Animate - reveal text
+          gsap.to(textRef.current, {
+            strokeDashoffset: 0,
+            duration,
+            ease: 'sine.inOut',
+            onStart: () => console.log('Animation started'),
+            onComplete: () => console.log('Animation complete'),
+          });
+        } catch (error) {
+          console.error('Animation error:', error);
+        }
+      });
+    });
   }, [text, duration]);
 
   return (
     <svg
-      ref={svgRef}
       viewBox="0 0 1920 1080"
       xmlns="http://www.w3.org/2000/svg"
       style={{
@@ -80,6 +63,7 @@ export const HandwritingAnimation: React.FC<HandwritingProps> = ({
         height: 'auto',
         display: 'block',
         backgroundColor: '#fff',
+        border: '2px solid #ccc',
       }}
     >
       <text
@@ -89,11 +73,11 @@ export const HandwritingAnimation: React.FC<HandwritingProps> = ({
         textAnchor="middle"
         dominantBaseline="middle"
         style={{
-          fontSize: '140px',
-          fontFamily: '"Italianno", cursive',
+          fontSize: '200px',
+          fontFamily: '"Tangerine", cursive',
           fill: 'none',
           stroke: '#000000',
-          strokeWidth: '5.5',
+          strokeWidth: '7.5',
           strokeLinecap: 'round',
           strokeLinejoin: 'round',
         }}
