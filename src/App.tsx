@@ -19,8 +19,32 @@ export default function App() {
 
       // Set up video recording
       const stream = canvas.captureStream(30); // 30 FPS
+
+            // Try codecs in order of compatibility
+            const mimeTypes = [
+              'video/webm;codecs=vp9',
+              'video/webm;codecs=vp8',
+              'video/webm',
+            ];
+            
+            let selectedMimeType = '';
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType;
+          console.log('Using codec:', mimeType);
+          break;
+        }
+      }
+      
+      if (!selectedMimeType) {
+        console.error('No supported video codec found');
+        alert('Your browser does not support video export');
+        setIsExporting(false);
+        return;
+      }
+
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9',
+        mimeType: selectedMimeType,
       });
 
       const chunks: Blob[] = [];
@@ -120,7 +144,7 @@ export default function App() {
       </div>
 
       {/* Preview */}
-      <div style={{ marginBottom: '2rem', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ marginBottom: '2rem', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', backgroundColor:'red' }}>
         <HandwritingAnimation text={text} duration={duration} />
       </div>
 

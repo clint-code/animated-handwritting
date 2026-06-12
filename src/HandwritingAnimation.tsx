@@ -73,7 +73,7 @@ export const HandwritingAnimation: React.FC<HandwritingProps> = ({
         textAnchor="middle"
         dominantBaseline="middle"
         style={{
-          fontSize: '200px',
+          fontSize: '220px',
           fontFamily: '"Tangerine", cursive',
           fill: 'none',
           stroke: '#000000',
