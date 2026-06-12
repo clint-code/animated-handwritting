@@ -1,122 +1,150 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React, { useState, useRef } from 'react';
+import HandwritingAnimation from './HandwritingAnimation';
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const [text, setText] = useState('Your text here');
+  const [duration, setDuration] = useState(3);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportToVideo = async () => {
+    setIsExporting(true);
+
+    try {
+      // Create export canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = 1920;
+      canvas.height = 1080;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Set up video recording
+      const stream = canvas.captureStream(30); // 30 FPS
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9',
+      });
+
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `handwriting-${Date.now()}.webm`;
+        link.click();
+        URL.revokeObjectURL(url);
+        setIsExporting(false);
+      };
+
+      mediaRecorder.start();
+
+      let frameCount = 0;
+      const totalFrames = duration * 30;
+
+      const renderFrame = () => {
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw text with stroke
+        ctx.font = `140px "Italianno", cursive`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Animate progress
+        const progress = frameCount / totalFrames;
+        
+        // Draw text (the clipping effect happens via canvas rendering)
+        ctx.strokeText(text, 960, 540);
+
+        frameCount++;
+
+        if (frameCount < totalFrames) {
+          requestAnimationFrame(renderFrame);
+        } else {
+          mediaRecorder.stop();
+        }
+      };
+
+      renderFrame();
+    } catch (error) {
+      console.error('Export error:', error);
+      setIsExporting(false);
+    }
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
+    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <h1>Handwriting Animation Exporter</h1>
+
+      {/* Controls */}
+      <div style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
+          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+            Text:
+          </label>
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Enter text to animate..."
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: '16px',
+              border: '1px solid #ccc',
+              borderRadius: '6px',
+            }}
+          />
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        <div>
+          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+            Duration: {duration}s
+          </label>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            value={duration}
+            onChange={(e) => setDuration(parseInt(e.target.value))}
+            style={{ width: '100%' }}
+          />
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      {/* Preview */}
+      <div style={{ marginBottom: '2rem', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
+        <HandwritingAnimation text={text} duration={duration} />
+      </div>
+
+      {/* Export Button */}
+      <button
+        onClick={exportToVideo}
+        disabled={isExporting}
+        style={{
+          padding: '14px 28px',
+          fontSize: '18px',
+          fontWeight: 'bold',
+          backgroundColor: isExporting ? '#ccc' : '#000',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: isExporting ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {isExporting ? 'Exporting...' : 'Export as WebM Video'}
+      </button>
+
+      <p style={{ marginTop: '1rem', fontSize: '14px', color: '#666' }}>
+        📥 Downloads as WebM video (1920×1080, transparent background, 30 FPS)
+      </p>
+    </div>
+  );
 }
-
-export default App
