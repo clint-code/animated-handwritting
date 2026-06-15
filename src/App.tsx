@@ -1,12 +1,36 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { toBlobURL } from '@ffmpeg/util';
 import HandwritingAnimation from './HandwritingAnimation';
+
+const ffmpeg = new FFmpeg();
 
 export default function App() {
   const [text, setText] = useState('Your text here');
   const [duration, setDuration] = useState(3);
   const [isExporting, setIsExporting] = useState(false);
+  const [ffmpegReady, setFfmpegReady] = useState(false);
+
+  // Initialize FFmpeg once
+  React.useEffect(() => {
+    const initFFmpeg = async () => {
+      try {
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
+        await ffmpeg.load({
+          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        });
+        setFfmpegReady(true);
+        console.log('FFmpeg ready');
+      } catch (error) {
+        console.error('FFmpeg initialization error:', error);
+      }
+    };
+    initFFmpeg();
+  }, []);
 
   const exportToVideo = async () => {
+    
     setIsExporting(true);
 
     try {
@@ -19,15 +43,15 @@ export default function App() {
 
       // Set up video recording
       const stream = canvas.captureStream(30); // 30 FPS
-
-            // Try codecs in order of compatibility
-            const mimeTypes = [
-              'video/webm;codecs=vp9',
-              'video/webm;codecs=vp8',
-              'video/webm',
-            ];
-            
-            let selectedMimeType = '';
+      
+      // Try codecs in order of compatibility
+      const mimeTypes = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm',
+      ];
+      
+      let selectedMimeType = '';
       for (const mimeType of mimeTypes) {
         if (MediaRecorder.isTypeSupported(mimeType)) {
           selectedMimeType = mimeType;
@@ -42,7 +66,7 @@ export default function App() {
         setIsExporting(false);
         return;
       }
-
+      
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: selectedMimeType,
       });
@@ -52,14 +76,19 @@ export default function App() {
         if (e.data.size > 0) chunks.push(e.data);
       };
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `handwriting-${Date.now()}.webm`;
-        link.click();
-        URL.revokeObjectURL(url);
+      // When recording finishes, convert WebM to MP4
+      mediaRecorder.onstop = async () => {
+        const webmBlob = new Blob(chunks, { type: selectedMimeType });
+        
+        // Convert to MP4 if FFmpeg is ready
+        if (ffmpegReady) {
+          await convertToMP4(webmBlob);
+        } else {
+          // Fallback: download as WebM
+          console.warn('FFmpeg not ready, downloading as WebM');
+          downloadWebM(webmBlob);
+        }
+        
         setIsExporting(false);
       };
 
@@ -72,20 +101,28 @@ export default function App() {
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw text with stroke
-        ctx.font = `140px "Italianno", cursive`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        // Animate progress
+        // Calculate progress (0 to 1)
         const progress = frameCount / totalFrames;
-        
-        // Draw text (the clipping effect happens via canvas rendering)
+
+        // // Draw text with stroke
+        // ctx.font = `700 140px "Tangerine", cursive`;
+        // ctx.textAlign = 'center';
+        // ctx.textBaseline = 'middle';
+        // ctx.strokeStyle = '#ffffff';
+        // ctx.lineWidth = 2.5;
+        // ctx.lineCap = 'round';
+        // ctx.lineJoin = 'round';
+
+        // Clip canvas to show text progressively
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, canvas.width * progress, canvas.height);  // Clip from 0% to 100%
+        ctx.clip();
+
+        // Draw text (only visible within clipped region)
         ctx.strokeText(text, 960, 540);
+
+        ctx.restore();
 
         frameCount++;
 
@@ -94,6 +131,7 @@ export default function App() {
         } else {
           mediaRecorder.stop();
         }
+
       };
 
       renderFrame();
@@ -101,11 +139,73 @@ export default function App() {
       console.error('Export error:', error);
       setIsExporting(false);
     }
+
+  };
+
+  const convertToMP4 = async (webmBlob: Blob) => {
+    try {
+      console.log('Converting WebM to MP4...');
+      
+      // Write WebM to FFmpeg virtual file system
+      const webmData = await webmBlob.arrayBuffer();
+      ffmpeg.writeFile('input.webm', new Uint8Array(webmData));
+
+      // Run FFmpeg to convert WebM to MP4
+      await ffmpeg.exec([
+        '-i', 'input.webm',
+        '-c:v', 'libx264',  // Video codec
+        '-preset', 'fast',   // Speed/quality tradeoff
+        '-c:a', 'aac',       // Audio codec
+        'output.mp4'
+      ]);
+
+      // Read the output MP4
+      const data = await ffmpeg.readFile('output.mp4');
+      const mp4Blob = new Blob([data], { type: 'video/mp4' });
+
+      // Download MP4
+      const url = URL.createObjectURL(mp4Blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `handwriting-${Date.now()}.mp4`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      // Clean up FFmpeg files
+      await ffmpeg.deleteFile('input.webm');
+      await ffmpeg.deleteFile('output.mp4');
+
+      console.log('MP4 conversion complete');
+    } catch (error) {
+      console.error('MP4 conversion error:', error);
+      alert('MP4 conversion failed, downloading as WebM instead');
+      // The WebM is already recorded, but we couldn't convert it
+    }
+  };
+
+  const downloadWebM = (blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `handwriting-${Date.now()}.webm`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <h1>Handwriting Animation Exporter</h1>
+
+      {/* FFmpeg Status */}
+      <div style={{ 
+        padding: '12px', 
+        marginBottom: '1rem', 
+        borderRadius: '6px',
+        backgroundColor: ffmpegReady ? '#d1fae5' : '#fef3c7',
+        color: ffmpegReady ? '#047857' : '#92400e',
+      }}>
+        FFmpeg: {ffmpegReady ? '✅ Ready (MP4 export enabled)' : '⏳ Loading...'}
+      </div>
 
       {/* Controls */}
       <div style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -144,30 +244,30 @@ export default function App() {
       </div>
 
       {/* Preview */}
-      <div style={{ marginBottom: '2rem', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', backgroundColor:'red' }}>
+      <div style={{ marginBottom: '2rem', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
         <HandwritingAnimation text={text} duration={duration} />
       </div>
 
       {/* Export Button */}
       <button
         onClick={exportToVideo}
-        disabled={isExporting}
+        disabled={isExporting || !ffmpegReady}
         style={{
           padding: '14px 28px',
           fontSize: '18px',
           fontWeight: 'bold',
-          backgroundColor: isExporting ? '#ccc' : '#000',
+          backgroundColor: (isExporting || !ffmpegReady) ? '#ccc' : '#000',
           color: '#fff',
           border: 'none',
           borderRadius: '6px',
-          cursor: isExporting ? 'not-allowed' : 'pointer',
+          cursor: (isExporting || !ffmpegReady) ? 'not-allowed' : 'pointer',
         }}
       >
-        {isExporting ? 'Exporting...' : 'Export as WebM Video'}
+        {isExporting ? 'Exporting & Converting...' : 'Export as MP4 Video'}
       </button>
 
       <p style={{ marginTop: '1rem', fontSize: '14px', color: '#666' }}>
-        📥 Downloads as WebM video (1920×1080, transparent background, 30 FPS)
+        📥 Downloads as MP4 video (1920×1080, transparent background, 30 FPS)
       </p>
     </div>
   );

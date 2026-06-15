@@ -62,7 +62,7 @@ export const HandwritingAnimation: React.FC<HandwritingProps> = ({
         width: '100%',
         height: 'auto',
         display: 'block',
-        backgroundColor: '#fff',
+        backgroundColor: '#000',
         border: '2px solid #ccc',
       }}
     >
@@ -76,7 +76,7 @@ export const HandwritingAnimation: React.FC<HandwritingProps> = ({
           fontSize: '220px',
           fontFamily: '"Tangerine", cursive',
           fill: 'none',
-          stroke: '#000000',
+          stroke: '#ffffff',
           strokeWidth: '7.5',
           strokeLinecap: 'round',
           strokeLinejoin: 'round',
