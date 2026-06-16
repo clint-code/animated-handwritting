@@ -11,6 +11,11 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [ffmpegReady, setFfmpegReady] = useState(false);
 
+  const FONT_SIZE = 220; // matches fontSize: '220px'
+  const STROKE_WIDTH = 7.5; // matches strokeWidth: '7.5'
+  const FONT_FAMILY = '"Tangerine", cursive'; // matches fontFamily
+  const STROKE_COLOR = '#ffffff'; // matches stroke: '#ffffff'
+
   // Initialize FFmpeg once
   React.useEffect(() => {
     const initFFmpeg = async () => {
@@ -40,6 +45,15 @@ export default function App() {
       canvas.height = 1080;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
+
+            // Wait for fonts to be ready
+            await new Promise(resolve => {
+              if ((document as any).fonts?.ready) {
+                (document as any).fonts.ready.then(() => resolve(null));
+              } else {
+                setTimeout(() => resolve(null), 500);
+              }
+            });      
 
       // Set up video recording
       const stream = canvas.captureStream(30); // 30 FPS
@@ -104,14 +118,14 @@ export default function App() {
         // Calculate progress (0 to 1)
         const progress = frameCount / totalFrames;
 
-        // // Draw text with stroke
-        // ctx.font = `700 140px "Tangerine", cursive`;
-        // ctx.textAlign = 'center';
-        // ctx.textBaseline = 'middle';
-        // ctx.strokeStyle = '#ffffff';
-        // ctx.lineWidth = 2.5;
-        // ctx.lineCap = 'round';
-        // ctx.lineJoin = 'round';
+        // Draw text with stroke
+        ctx.font = `700 ${FONT_SIZE}px ${FONT_FAMILY}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.strokeStyle = STROKE_COLOR;
+        ctx.lineWidth = STROKE_WIDTH;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
 
         // Clip canvas to show text progressively
         ctx.save();
